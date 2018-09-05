@@ -68,7 +68,7 @@ func resetShard(runner *Runner, id ShardID, partition topic.Partition) error {
 	}
 
 	// Open the database & store offsets,
-	db, err := newDatabase(options, fsm, author, localDir, runner.Gazette)
+	db, err := NewDatabase(options, fsm, author, localDir, runner.Gazette)
 	if err != nil {
 		return err
 	}

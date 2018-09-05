@@ -3,11 +3,13 @@ package recoverylog
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/big"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -76,7 +78,11 @@ func NewRandomAuthorID() (Author, error) {
 
 // NewWritableFile is an implementation of rocks.EnvObserver to track the creation of new files.
 func (r *Recorder) NewWritableFile(path string) rocks.WritableFileObserver {
-	path = r.normalizePath(path)
+	log.WithFields(log.Fields{"path": path}).Info("new writable file")
+	path, err := r.normalizePath(path)
+	if(err!= nil){
+		log.WithField("error", err).Fatal("failed in NewWritableFile")
+	}
 
 	if _, isProperty := propertyFiles[path]; isProperty {
 		log.WithField("path", path).Panic("unexpected open of property path")
@@ -104,7 +110,12 @@ func (r *Recorder) NewWritableFile(path string) rocks.WritableFileObserver {
 
 // DeleteFile is an implementation of rocks.EnvObserver to track file deletions.
 func (r *Recorder) DeleteFile(path string) {
-	path = r.normalizePath(path)
+	log.WithFields(log.Fields{"path": path}).Info("deleting file")
+	path, err := r.normalizePath(path)
+	if(err!= nil){
+		log.WithField("error", err).Fatal("failed in DeleteFile")
+	}
+	log.WithFields(log.Fields{"normalized_path": path}).Info("normalized path")
 
 	if _, isProperty := propertyFiles[path]; isProperty {
 		log.WithField("path", path).Panic("unexpected delete of property path")
@@ -115,6 +126,7 @@ func (r *Recorder) DeleteFile(path string) {
 
 	fnode, ok := r.fsm.Links[path]
 	if !ok {
+		log.WithFields(log.Fields{"links": r.fsm.Links}).Info("links when panicking")
 		log.WithFields(log.Fields{"path": path}).Panic("delete of unknown path")
 	}
 
@@ -126,7 +138,16 @@ func (r *Recorder) DeleteDir(dirname string) { /* No-op */ }
 
 // LinkFile is an implementation of rocks.EnvObserver to track file hard-links.
 func (r *Recorder) LinkFile(src, target string) {
-	src, target = r.normalizePath(src), r.normalizePath(target)
+	log.WithFields(log.Fields{"src": src, "target": target}).Info("linked files")
+
+	src, err := r.normalizePath(src)
+	if(err!= nil){
+		log.WithField("error", err).Fatal("failed in LinkFile src")
+	}
+	target, err = r.normalizePath(target)
+	if(err!= nil){
+		log.WithField("error", err).Fatal("failed in LinkFile target")
+	}
 
 	if _, isProperty := propertyFiles[target]; isProperty {
 		log.WithFields(log.Fields{"src": src, "target": target}).
@@ -146,7 +167,16 @@ func (r *Recorder) LinkFile(src, target string) {
 
 // RenameFile is an implementation of rocks.EnvObserver to track file renames.
 func (r *Recorder) RenameFile(srcPath, targetPath string) {
-	var src, target = r.normalizePath(srcPath), r.normalizePath(targetPath)
+	log.WithFields(log.Fields{"src": srcPath, "target": targetPath}).Info("renamed file")
+
+	src, err := r.normalizePath(srcPath)
+	if err!= nil {
+		log.WithField("error", err).Fatal("failed in RenameFile src")
+	}
+	target, err := r.normalizePath(targetPath)
+	if err!= nil {
+		log.WithField("error", err).Fatal("failed in RenameFile target")
+	}
 
 	defer r.mu.Unlock()
 	r.mu.Lock()
@@ -201,8 +231,13 @@ func (r *Recorder) WriteBarrier() *journal.AsyncAppend {
 	return r.recordFrame(nil)
 }
 
-func (r *Recorder) normalizePath(path string) string {
-	return filepath.Clean(path[r.stripLen:])
+func (r *Recorder) normalizePath(path string) (npath string, err error) {
+	npath = filepath.Clean(path[r.stripLen:])
+	err = nil
+	if !strings.HasPrefix(npath, "/") {
+		err = fmt.Errorf("bad cleaned string: %s ; %s", npath, path)
+	}
+	return
 }
 
 func (r *Recorder) process(op RecordedOp, b []byte) []byte {

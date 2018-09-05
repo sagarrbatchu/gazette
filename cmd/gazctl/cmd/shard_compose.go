@@ -45,6 +45,14 @@ the specified offset checkpoint, with precedence over all other sources.
 		}
 		var srcPaths, tgtPath = args[:len(args)-1], args[len(args)-1]
 
+		log.Info("running test version 5 (instrument normalization)")
+		f, err := os.OpenFile(args[1]+"-shard_compose-LOG", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+
 		var opts = rocks.NewDefaultOptions()
 		if plugin := consumerPlugin(); plugin != nil {
 			if initer, _ := plugin.(consumer.OptionsIniter); initer != nil {
@@ -102,7 +110,6 @@ the specified offset checkpoint, with precedence over all other sources.
 		}
 
 		var fsm *recoverylog.FSM
-		var err error
 
 		if composeRecoveryLog != "" {
 			fsm, err = recoverylog.NewFSM(recoverylog.FSMHints{Log: journal.Name(composeRecoveryLog)})
@@ -176,6 +183,7 @@ the specified offset checkpoint, with precedence over all other sources.
 				log.WithField("err", err).Fatal("failed to Marshal FSMHints")
 			}
 			log.WithField("path", tgtHintsPath).Info("wrote hints")
+			log.WithField("fsm", fsm).Info("final fsm state")
 		}
 	},
 }

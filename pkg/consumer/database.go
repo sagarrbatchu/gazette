@@ -7,7 +7,7 @@ import (
 	"github.com/LiveRamp/gazette/pkg/recoverylog"
 )
 
-type database struct {
+type Database struct {
 	recorder *recoverylog.Recorder
 
 	*rocks.DB
@@ -18,12 +18,12 @@ type database struct {
 	writeBatch   *rocks.WriteBatch
 }
 
-func newDatabase(options *rocks.Options, fsm *recoverylog.FSM, author recoverylog.Author, dir string,
-	writer journal.Writer) (*database, error) {
+func NewDatabase(options *rocks.Options, fsm *recoverylog.FSM, author recoverylog.Author, dir string,
+	writer journal.Writer) (*Database, error) {
 
 	var recorder = recoverylog.NewRecorder(fsm, author, len(dir), writer)
 
-	var db = &database{
+	var db = &Database{
 		recorder: recorder,
 
 		env:          rocks.NewObservedEnv(recorder),
@@ -62,7 +62,7 @@ func newDatabase(options *rocks.Options, fsm *recoverylog.FSM, author recoverylo
 	return db, nil
 }
 
-func (db *database) commit() (*journal.AsyncAppend, error) {
+func (db *Database) commit() (*journal.AsyncAppend, error) {
 	if err := db.Write(db.writeOptions, db.writeBatch); err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (db *database) commit() (*journal.AsyncAppend, error) {
 	return db.recorder.WriteBarrier(), nil
 }
 
-func (db *database) teardown() {
+func (db *Database) teardown() {
 	if db.DB != nil {
 		// Blocks until all background compaction has completed.
 		db.DB.Close()

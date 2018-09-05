@@ -6,11 +6,14 @@ import (
 	"os"
 	"path"
 
+	"github.com/LiveRamp/gazette/pkg/consumer"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/LiveRamp/gazette/pkg/gazette"
 	"github.com/LiveRamp/gazette/pkg/recoverylog"
+
+	rocks "github.com/tecbot/gorocksdb"
 )
 
 var shardCmd = &cobra.Command{
@@ -35,18 +38,29 @@ key specifier ("etcd:///path/to/hints").
 		}
 		var hints, tgtPath = loadHints(args[0]), args[1]
 
+		log.Info("running test version 5 (instrument normalization)")
+
+		f, err := os.OpenFile("shard_recover_" + args[1] + ".log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+
 		player, err := recoverylog.NewPlayer(hints, tgtPath)
 		if err != nil {
 			log.WithField("err", err).Fatal("preparing playback")
 		}
 
+		writeService := writeService()
 		go func() {
+
 			if err := player.PlayContext(
 				context.Background(),
 				struct {
 					*gazette.Client
 					*gazette.WriteService
-				}{gazetteClient(), writeService()},
+				}{gazetteClient(), writeService},
 			); err != nil {
 				log.WithField("err", err).Fatal("shard playback failed")
 			}
@@ -69,6 +83,40 @@ key specifier ("etcd:///path/to/hints").
 		} else {
 			log.WithField("path", recoveredPath).Info("wrote recovered hints")
 		}
+
+		author, err := recoverylog.NewRandomAuthorID()
+		log.WithField("author", author).Info("starting up recorder")
+		var recorder = recoverylog.NewRecorder(fsm, author, len(tgtPath), writeService)
+		recorder.BuildHints()
+		log.WithField("recorder", recorder).Info("recorder initialized")
+
+		var opts = rocks.NewDefaultOptions()
+		if plugin := consumerPlugin(); plugin != nil {
+			if initer, _ := plugin.(consumer.OptionsIniter); initer != nil {
+				initer.InitOptions(opts)
+			}
+		}
+		log.WithField("fsm", fsm).Info("opening consumer db")
+		if newdb, err := consumer.NewDatabase(opts, fsm, author, tgtPath, writeService); err != nil {
+			log.WithFields(log.Fields{"hints": args[0], "err": err}).Error("failed to open database")
+		} else {
+			println(newdb.GetLiveFilesMetaData())
+			log.Info(newdb.GetLiveFilesMetaData())
+			println("new db inited")
+			log.Info("new db inited")
+			newdb.Close()
+			println("new db closed")
+			log.Info("new db closed")
+		}
+
+		//// Let the consumer and runner perform any desired initialization or teardown.
+		//if initer, ok := runner.Consumer.(ShardIniter); ok {
+		//	if err = initer.InitShard(m); err != nil {
+		//		log.WithFields(log.Fields{"shard": m.shard, "err": err}).Error("failed to InitShard")
+		//		return
+		//	}
+		//}
+		//
 	},
 }
 

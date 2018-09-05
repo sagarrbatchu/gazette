@@ -38,7 +38,7 @@ func (s *DatabaseSuite) TestDatabase(c *gc.C) {
 	var opts = rocks.NewDefaultOptions()
 	defer opts.Destroy()
 
-	db, err := newDatabase(opts, fsm, author, path, writer)
+	db, err := NewDatabase(opts, fsm, author, path, writer)
 
 	// Expect that database operations are being replicated to |logName|.
 	c.Check(err, gc.IsNil)

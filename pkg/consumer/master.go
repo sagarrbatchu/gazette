@@ -81,7 +81,7 @@ type master struct {
 	servingCh chan struct{}   // Blocks until master.serve exits.
 	initCh    chan struct{}   // Selectable after initialization completes.
 
-	database *database
+	database *Database
 	cache    interface{}
 }
 
@@ -162,7 +162,7 @@ func (m *master) serve(runner *Runner, replica *replica) {
 		initer.InitOptions(opts)
 	}
 
-	if m.database, err = newDatabase(opts, fsm, author, m.localDir, runner.Gazette); err != nil {
+	if m.database, err = NewDatabase(opts, fsm, author, m.localDir, runner.Gazette); err != nil {
 		log.WithFields(log.Fields{"shard": m.shard, "err": err}).Error("failed to open database")
 		return
 	}
