@@ -9,6 +9,7 @@ import (
 	pb "github.com/LiveRamp/gazette/v2/pkg/protocol"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"time"
 )
 
 // Append dispatches the JournalServer.Append API.
@@ -166,9 +167,10 @@ type appender struct {
 // beginAppending updates the current proposal, if needed, then initializes
 // and returns an appender.
 func beginAppending(pln *pipeline, spec pb.JournalSpec_Fragment) appender {
+
 	// Potentially roll the Fragment forward prior to serving the append.
 	// We expect this to always succeed and don't ask for an acknowledgement.
-	var proposal, update = updateProposal(pln.spool.Fragment.Fragment, spec)
+	var proposal, update = updateProposal(pln.spool.Fragment.Fragment, spec, pln.spool.FirstAppendTime)
 
 	if update {
 		pln.scatter(&pb.ReplicateRequest{
@@ -260,12 +262,35 @@ func (a appender) String() string {
 
 // updateProposal applies JournalSpec configuration to a replicated pipeline,
 // by proposing that the pipeline roll to a new, empty configured Fragment.
-func updateProposal(cur pb.Fragment, spec pb.JournalSpec_Fragment) (pb.Fragment, bool) {
-	// If the proposed Fragment is non-empty, but not yet at the target length,
-	// don't propose changes to it.
-	if cur.ContentLength() > 0 && cur.ContentLength() < spec.Length {
+func updateProposal(cur pb.Fragment, spec pb.JournalSpec_Fragment, firstAppendTime int64) (pb.Fragment, bool) {
+
+	var timeNow = time.Now()
+	var secsSinceEpoch = timeNow.Unix()
+
+	if spec.RollInterval > 0 {
+
+		// This interval segments UTC time, and the append API should close
+		// and roll a current Spool which was opened in a prior UTC time segment than the
+		// current time segment.
+		var intervalsSinceEpoch = float64(secsSinceEpoch) / spec.RollInterval.Seconds()
+		var fragmentInterval = float64(firstAppendTime) / spec.RollInterval.Seconds()
+
+		if fragmentInterval > intervalsSinceEpoch {
+			var next= nextFragmentGenerator(cur, spec)
+			return next, next != cur
+		}
+	}
+
+	if (cur.ContentLength() > spec.Length) {
+		var next = nextFragmentGenerator(cur, spec)
+		return next, next!= cur
+	} else {
 		return cur, false
 	}
+
+}
+
+func nextFragmentGenerator(cur pb.Fragment, spec pb.JournalSpec_Fragment) (pb.Fragment) {
 
 	var next = cur
 	next.Begin = next.End
@@ -277,7 +302,7 @@ func updateProposal(cur pb.Fragment, spec pb.JournalSpec_Fragment) (pb.Fragment,
 	} else {
 		next.BackingStore = ""
 	}
-	return next, next != cur
+	return next
 }
 
 var (

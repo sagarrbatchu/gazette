@@ -33,6 +33,8 @@ type Spool struct {
 	sumState []byte    // SHA1 |summer| internal state at the last Fragment commit.
 
 	observer SpoolObserver
+
+	FirstAppendTime int64
 }
 
 // SpoolObserver is notified of important events in the Spool lifecycle.
@@ -132,6 +134,7 @@ func (s *Spool) applyCommit(r *pb.ReplicateRequest, primary bool) pb.ReplicateRe
 			summer:   sha1.New(),
 			sumState: zeroedSHA1State,
 			observer: s.observer,
+			FirstAppendTime: time.Now().Unix(),
 		}
 	}
 
