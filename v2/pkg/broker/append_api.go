@@ -281,11 +281,11 @@ func updateProposal(cur pb.Fragment, spec pb.JournalSpec_Fragment, firstAppendTi
 		}
 	}
 
-	if (cur.ContentLength() > spec.Length) {
+	if (cur.ContentLength() > 0 && cur.ContentLength() < spec.Length) {
+		return cur, false
+	} else {
 		var next = nextFragmentGenerator(cur, spec)
 		return next, next!= cur
-	} else {
-		return cur, false
 	}
 
 }
