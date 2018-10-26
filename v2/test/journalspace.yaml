@@ -49,7 +49,6 @@ fragment:
 children:
   # Test journal for basic testing and curl-based examples.
   - name: examples/foobar
-    fragment:
   # Journals used by the stream-sum example.
   - name: examples/stream-sum/
     fragment:
