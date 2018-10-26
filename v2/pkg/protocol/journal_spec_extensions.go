@@ -78,6 +78,10 @@ func (m *JournalSpec_Fragment) Validate() error {
 		return NewValidationError("invalid RefreshInterval (%s; expected %s <= interval <= %s)",
 			m.RefreshInterval, minRefreshInterval, maxRefreshInterval)
 	}
+	if m.RollInterval < minRollInterval {
+		return NewValidationError("invalid RollInterval (%s; expected interval >= %s)",
+			m.RollInterval, minRollInterval)
+	}
 
 	// Retention requires no explicit validation (all values permitted).
 
@@ -164,6 +168,9 @@ func UnionJournalSpecs(a, b JournalSpec) JournalSpec {
 	if a.Fragment.RefreshInterval == 0 {
 		a.Fragment.RefreshInterval = b.Fragment.RefreshInterval
 	}
+	if a.Fragment.RollInterval == 0 {
+		a.Fragment.RollInterval = b.Fragment.RollInterval
+	}
 	if a.Fragment.Retention == 0 {
 		a.Fragment.Retention = b.Fragment.Retention
 	}
@@ -193,6 +200,9 @@ func IntersectJournalSpecs(a, b JournalSpec) JournalSpec {
 	if a.Fragment.RefreshInterval != b.Fragment.RefreshInterval {
 		a.Fragment.RefreshInterval = 0
 	}
+	if a.Fragment.RollInterval != b.Fragment.RollInterval {
+		a.Fragment.RollInterval = 0
+	}
 	if a.Fragment.Retention != b.Fragment.Retention {
 		a.Fragment.Retention = 0
 	}
@@ -221,6 +231,9 @@ func SubtractJournalSpecs(a, b JournalSpec) JournalSpec {
 	}
 	if a.Fragment.RefreshInterval == b.Fragment.RefreshInterval {
 		a.Fragment.RefreshInterval = 0
+	}
+	if a.Fragment.RollInterval == b.Fragment.RollInterval {
+		a.Fragment.RollInterval = 0
 	}
 	if a.Fragment.Retention == b.Fragment.Retention {
 		a.Fragment.Retention = 0
@@ -270,6 +283,7 @@ const (
 	maxJournalReplication                  = 5
 	minRefreshInterval, maxRefreshInterval = time.Second, time.Hour * 24
 	minFragmentLen, maxFragmentLen         = 1 << 10, 1 << 34 // 1024 => 17,179,869,184
+	minRollInterval                        = time.Second * 0
 
 	// FramingFixed is the label value for message.FixedFraming.
 	FramingFixed = "fixed"

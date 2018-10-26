@@ -46,13 +46,17 @@ fragment:
   # Compression codec used to compress fragments. One of:
   # NONE, GZIP, GZIP_OFFLOAD_DECOMPRESSION, SNAPPY, ZSTANDARD.
   compression_codec: SNAPPY
+  rollinterval: 1m0s
 children:
   # Test journal for basic testing and curl-based examples.
   - name: examples/foobar
+    fragment:
+     rollinterval: 1m0s
   # Journals used by the stream-sum example.
   - name: examples/stream-sum/
     fragment:
       compression_codec: GZIP_OFFLOAD_DECOMPRESSION
+      rollinterval: 1m0s
     children:
     - name: examples/stream-sum/chunks/
       labels:
